@@ -1,1 +1,14 @@
 venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+env/
+ENV/
+env.bak/
+venv.bak/
+.DS_Store
+temp/
+weights/*.pt
+weights/model.pt
