@@ -8,5 +8,5 @@
 	"augments": {
 	  "strong_transform": 1
 	},
-	"models": ["deepware.pt"]  
+	"models": ["model.pt"]  
   }

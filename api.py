@@ -4,6 +4,7 @@ from werkzeug.utils import secure_filename
 import os
 import uuid
 from scan import init, process
+from model_download import download_models
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS
@@ -12,9 +13,14 @@ app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB limit
 app.config['ALLOWED_EXTENSIONS'] = {'mp4', 'avi', 'mov'}
 
 # Initialize the model once at startup
-MODELS_DIR = r'C:\Users\aarya\Downloads\AI Model\Video Model\weights'
-CFG_FILE = r'C:\Users\aarya\Downloads\AI Model\Video Model\config.json'
-DEVICE = 'cpu'  # Use 'cpu' if no GPU
+# Use relative paths for deployment compatibility
+MODELS_DIR = os.path.join(os.path.dirname(__file__), 'weights')
+CFG_FILE = os.path.join(os.path.dirname(__file__), 'config.json') 
+DEVICE = os.environ.get('DEVICE', 'cpu')  # Use environment variable or default to CPU
+
+# Download models if needed (for cloud deployment)
+if os.environ.get('DOWNLOAD_MODELS', 'False').lower() == 'true':
+    download_models()
 
 init(MODELS_DIR, CFG_FILE, DEVICE)
 
@@ -56,4 +62,8 @@ def detect_deepfake():
 
 if __name__ == '__main__':
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-    app.run(host='0.0.0.0', port=5000)
+    print("Starting DeepFake Detection API server")
+    print("You can use this API to detect DeepFake videos")
+    print("Use the /detect endpoint with a POST request and a video file")
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
