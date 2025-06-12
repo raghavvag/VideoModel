@@ -28,6 +28,13 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
+@app.route('/', methods=['GET'])
+def index():
+    return jsonify({
+        'status': 'online',
+        'message': 'DeepFake Detection API is running. Use the /detect endpoint with a POST request to analyze a video.'
+    })
+
 @app.route('/detect', methods=['POST'])
 def detect_deepfake():
     if 'file' not in request.files:
