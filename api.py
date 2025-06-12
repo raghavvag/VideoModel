@@ -3,8 +3,12 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import os
 import uuid
-from scan import init, process
-from model_download import download_models
+import json
+import time
+import threading
+import subprocess
+import sys
+from scan import process
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS
@@ -12,22 +16,31 @@ app.config['UPLOAD_FOLDER'] = './temp'
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB limit
 app.config['ALLOWED_EXTENSIONS'] = {'mp4', 'avi', 'mov'}
 
-# Initialize the model once at startup
 # Use relative paths for deployment compatibility
 MODELS_DIR = os.path.join(os.path.dirname(__file__), 'weights')
 CFG_FILE = os.path.join(os.path.dirname(__file__), 'config.json') 
-DEVICE = os.environ.get('DEVICE', 'cpu')  # Use environment variable or default to CPU
+DEVICE = os.environ.get('DEVICE', 'cpu')
 
-# Ensure all required directories exist
+# Ensure temp directory exists
 os.makedirs('temp', exist_ok=True)
-os.makedirs('weights', exist_ok=True)
-os.makedirs(os.path.dirname(CFG_FILE), exist_ok=True)
 
-# Download models if needed (for cloud deployment)
-if os.environ.get('DOWNLOAD_MODELS', 'False').lower() == 'true':
-    download_models()
+# Global variable to track if model is ready
+MODEL_READY = False
+MODEL_ERROR = None
 
-init(MODELS_DIR, CFG_FILE, DEVICE)
+# Function to start the model initialization in a separate process
+def start_model_initialization():
+    print("Starting model worker process...")
+    try:
+        # Run the model_worker.py script as a separate process
+        subprocess.Popen([sys.executable, "model_worker.py"])
+    except Exception as e:
+        print(f"Error starting model worker: {e}")
+        global MODEL_ERROR
+        MODEL_ERROR = str(e)
+
+# Start model initialization in the background
+threading.Thread(target=start_model_initialization).start()
 
 def allowed_file(filename):
     return '.' in filename and \
@@ -40,8 +53,58 @@ def index():
         'message': 'DeepFake Detection API is running. Use the /detect endpoint with a POST request to analyze a video.'
     })
 
+@app.route('/status', methods=['GET'])
+def model_status():
+    """Check if the model is ready for inference"""
+    if os.path.exists("model_ready.json"):
+        try:
+            with open("model_ready.json", "r") as f:
+                status = json.load(f)
+                if status["status"] == "ready":
+                    return jsonify({
+                        "status": "ready",
+                        "message": "Model is ready for inference",
+                        "initialization_time": status.get("initialization_time", 0)
+                    })
+                else:
+                    return jsonify({
+                        "status": "error",
+                        "message": "Model initialization failed",
+                        "error": status.get("error", "Unknown error")
+                    }), 500
+        except Exception as e:
+            return jsonify({
+                "status": "initializing",
+                "message": "Checking model status failed",
+                "error": str(e)
+            }), 500
+    else:
+        return jsonify({
+            "status": "initializing",
+            "message": "Model is still initializing, please check back later"
+        }), 202  # 202 Accepted means the request was accepted but processing is not complete
+
 @app.route('/detect', methods=['POST'])
 def detect_deepfake():
+    # Check if model is ready
+    if not os.path.exists("model_ready.json"):
+        return jsonify({
+            'error': 'Model is still initializing. Please try again later or check /status endpoint.',
+            'status': 'initializing'
+        }), 503  # Service Unavailable
+    
+    try:
+        with open("model_ready.json", "r") as f:
+            status = json.load(f)
+            if status["status"] != "ready":
+                return jsonify({
+                    'error': 'Model initialization failed',
+                    'status': 'error',
+                    'details': status.get("error", "Unknown error")
+                }), 500
+    except Exception as e:
+        return jsonify({'error': f'Failed to check model status: {str(e)}'}), 500
+
     if 'file' not in request.files:
         return jsonify({'error': 'No file uploaded'}), 400
     

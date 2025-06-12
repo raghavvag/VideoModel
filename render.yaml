@@ -4,7 +4,8 @@ services:
     name: deepfake-detection-api
     env: python
     buildCommand: chmod +x build.sh && ./build.sh
-    startCommand: gunicorn api:app
+    startCommand: gunicorn api:app --timeout 120
+    plan: starter # Use the starter plan which has more resources
     envVars:
       - key: DOWNLOAD_MODELS
         value: true
