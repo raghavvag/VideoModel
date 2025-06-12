@@ -18,6 +18,11 @@ MODELS_DIR = os.path.join(os.path.dirname(__file__), 'weights')
 CFG_FILE = os.path.join(os.path.dirname(__file__), 'config.json') 
 DEVICE = os.environ.get('DEVICE', 'cpu')  # Use environment variable or default to CPU
 
+# Ensure all required directories exist
+os.makedirs('temp', exist_ok=True)
+os.makedirs('weights', exist_ok=True)
+os.makedirs(os.path.dirname(CFG_FILE), exist_ok=True)
+
 # Download models if needed (for cloud deployment)
 if os.environ.get('DOWNLOAD_MODELS', 'False').lower() == 'true':
     download_models()
